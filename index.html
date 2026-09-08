@@ -1,33 +1,1123 @@
-function doGet(e) {
-  var sheet = getDataSheet();
-  var rows = sheet.getDataRange().getValues();
-  for (var i = 0; i < rows.length; i++) {
-    if (rows[i][0] === e.parameter.key) {
-      return out({value: rows[i][1]});
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BackPack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#efe9da;
+    --card:#f8f4e8;
+    --ink:#211d16;
+    --ink-soft:#635c4c;
+    --rule:#c2b48d;
+    --accent:#8a2e2b;
+    --accent-2:#3c5940;
+    --danger:#8a2e2b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    background-image:
+      repeating-linear-gradient(180deg, rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 1px, transparent 1px, transparent 34px);
+    color:var(--ink);
+    font-family:'Source Serif 4', Georgia, serif;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono', ui-monospace, monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  a{color:var(--accent);}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  /* ---------- shell ---------- */
+  .shell{max-width:920px;margin:0 auto;padding:40px 24px 80px;}
+
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:6px;}
+  .title-block{flex:1;min-width:240px;}
+  .archive-title{
+    font-size:clamp(30px,5vw,44px);
+    font-weight:600;
+    line-height:1.05;
+    margin:0;
+    outline:none;
+    border:none;
+    background:transparent;
+    color:var(--ink);
+    width:100%;
+  }
+  .archive-sub{margin:6px 0 0;color:var(--ink-soft);font-size:13px;letter-spacing:.02em;}
+
+  .notebooklm-link{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:9px 14px;
+    border:1px solid var(--ink);
+    background:var(--card);
+    color:var(--ink);
+    text-decoration:none;
+    font-size:13px;
+    white-space:nowrap;
+  }
+  .notebooklm-link:hover{background:var(--ink);color:var(--card);}
+  .notebooklm-link svg{width:13px;height:13px;flex-shrink:0;}
+
+  .rule-thick{border:none;border-top:3px solid var(--ink);margin:22px 0 0;}
+
+  .sync-banner{
+    border:1px solid var(--accent);
+    color:var(--accent);
+    background:var(--card);
+    padding:9px 14px;
+    font-size:12px;
+    margin-top:14px;
+  }
+
+  /* ---------- section nav ---------- */
+  .nav-row{display:flex;gap:8px;margin:18px 0 22px;}
+  .nav-btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:8px 18px;font-size:13px;}
+  .nav-btn.active{background:var(--ink);color:var(--card);}
+  .nav-btn:hover:not(.active){background:var(--rule);}
+
+  /* ---------- calendar ---------- */
+  .cal-layout{display:flex;border:1px solid var(--ink);background:var(--card);min-height:420px;}
+  .cal-sidebar{width:150px;flex-shrink:0;border-right:1px solid var(--ink);}
+  .cal-day{display:block;width:100%;text-align:left;padding:13px 16px;border:none;border-bottom:1px solid var(--rule);background:transparent;color:var(--ink);font-size:14px;}
+  .cal-day.active{background:var(--ink);color:var(--card);font-weight:600;}
+  .cal-day:hover:not(.active){background:var(--paper);}
+  .cal-main{flex:1;min-width:0;padding:26px;}
+  .cal-day-title{font-size:22px;font-weight:600;margin:0 0 4px;}
+  .cal-day-sub{font-size:12px;color:var(--ink-soft);margin:0 0 18px;}
+
+  .class-block{border:1px solid var(--rule);margin-bottom:16px;padding:14px 16px;background:var(--paper);}
+  .class-head{margin-bottom:8px;}
+  .class-head-btn{display:block;width:100%;text-align:left;background:none;border:none;padding:0;margin:0;cursor:pointer;color:inherit;font-family:inherit;}
+  .class-head-btn:hover .class-name{text-decoration:underline;text-decoration-color:var(--accent);}
+  .class-time{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:2px;}
+  .class-name{display:block;font-size:17px;font-weight:600;}
+  .item-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--rule);}
+  .item-row:first-of-type{border-top:none;}
+  .item-name{font-size:14px;}
+  .item-row-actions{display:flex;align-items:center;gap:12px;}
+  .status-tag{border:1px solid var(--ink-soft);color:var(--ink-soft);padding:4px 11px;font-size:11px;background:transparent;white-space:nowrap;font-family:'IBM Plex Mono',monospace;}
+  .status-tag.home{border-color:var(--accent-2);color:var(--accent-2);}
+  .status-tag.school{border-color:var(--accent);color:var(--accent);}
+  .mini-add{display:flex;gap:6px;margin-top:12px;}
+  .mini-add input{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--rule);background:var(--card);color:var(--ink);font-size:13px;font-family:inherit;}
+
+  @media (max-width:640px){
+    .cal-layout{flex-direction:column;}
+    .cal-sidebar{width:100%;display:flex;overflow-x:auto;border-right:none;border-bottom:1px solid var(--ink);}
+    .cal-day{border-bottom:none;border-right:1px solid var(--rule);white-space:nowrap;}
+  }
+
+  /* ---------- tabs ---------- */
+  .tabs{display:flex;flex-wrap:wrap;align-items:flex-end;gap:2px;margin-top:0;}
+  .tab{
+    position:relative;
+    padding:10px 20px 9px;
+    background:var(--rule);
+    color:var(--ink);
+    border:1px solid var(--ink);
+    border-bottom:none;
+    clip-path:polygon(8% 0,92% 0,100% 100%,0% 100%);
+    font-size:14px;
+    letter-spacing:.01em;
+    top:1px;
+  }
+  .tab.active{background:var(--card);top:0;padding-top:11px;font-weight:600;}
+  .tab:not(.active):hover{background:#cdbf94;}
+  .tab-add{
+    padding:10px 16px;
+    background:transparent;
+    border:1px dashed var(--ink-soft);
+    color:var(--ink-soft);
+    font-size:18px;
+    line-height:1;
+  }
+  .tab-add:hover{border-color:var(--ink);color:var(--ink);}
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--ink);
+    border-top:none;
+    padding:28px;
+  }
+  .empty-shell .panel{border-top:1px solid var(--ink);padding:40px 28px;}
+
+  /* ---------- subject header ---------- */
+  .back-link{display:inline-block;background:none;border:none;padding:0;margin-bottom:14px;font-size:12px;color:var(--ink-soft);cursor:pointer;}
+  .back-link:hover{color:var(--accent);}
+  .subject-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;}
+  .subject-name{font-size:22px;font-weight:600;margin:0;}
+  .subject-count{color:var(--ink-soft);font-size:13px;margin-left:10px;}
+  .head-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .btn{
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:var(--card);
+    padding:9px 16px;
+    font-size:13px;
+  }
+  .btn:hover{background:#3a3323;}
+  .btn.ghost{background:transparent;color:var(--ink);}
+  .btn.ghost:hover{background:var(--ink);color:var(--card);}
+  .btn.small{padding:5px 10px;font-size:12px;}
+  .btn.danger{border-color:var(--danger);color:var(--danger);background:transparent;}
+  .btn.danger:hover{background:var(--danger);color:var(--card);}
+
+  .search-row{margin-bottom:18px;}
+  .search-row input{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid var(--rule);
+    background:var(--paper);
+    color:var(--ink);
+    font-size:13px;
+  }
+
+  /* ---------- add-entry form ---------- */
+  .add-form{
+    border:1px solid var(--ink);
+    background:var(--paper);
+    padding:18px;
+    margin-bottom:22px;
+  }
+  .add-form h3{margin:0 0 14px;font-size:15px;font-weight:600;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:4px;}
+  .field input[type=text], .field input[type=url], .field select{
+    width:100%;
+    padding:8px 9px;
+    border:1px solid var(--rule);
+    background:var(--card);
+    color:var(--ink);
+    font-size:14px;
+    font-family:inherit;
+  }
+  .field input[type=file]{font-size:13px;}
+  .source-toggle{display:flex;gap:16px;margin-bottom:12px;font-size:13px;}
+  .source-toggle label{display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .form-actions{display:flex;gap:8px;margin-top:16px;}
+  .form-note{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+  .form-error{font-size:12px;color:var(--danger);margin-top:8px;}
+
+  /* ---------- items grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;}
+  .item-card{
+    background:var(--card);
+    border:1px solid var(--ink);
+    box-shadow:4px 4px 0 var(--ink);
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    transition:transform .08s ease, box-shadow .08s ease;
+  }
+  .item-card:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--ink);}
+  .card-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .accession{font-size:11px;color:var(--ink-soft);}
+  .type-tag{
+    font-size:10px;
+    padding:2px 7px;
+    border:1px solid var(--ink-soft);
+    color:var(--ink-soft);
+  }
+  .item-title{font-size:16px;font-weight:600;line-height:1.25;margin:0;}
+  .item-meta{font-size:11px;color:var(--ink-soft);}
+  .card-actions{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;}
+  .link-btn{background:none;border:none;padding:0;font-size:12px;color:var(--ink-soft);text-decoration:underline;}
+  .link-btn:hover{color:var(--danger);}
+
+  .empty-state{color:var(--ink-soft);font-size:14px;padding:30px 0;text-align:center;}
+  .empty-state.big{padding:60px 0;font-size:16px;}
+
+  /* ---------- modal ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(33,29,22,.72);
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;z-index:50;
+  }
+  .modal{
+    background:var(--card);
+    border:1px solid var(--ink);
+    width:100%;max-width:840px;max-height:90vh;
+    display:flex;flex-direction:column;
+  }
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--rule);}
+  .modal-head h3{margin:0;font-size:16px;}
+  .modal-close{background:none;border:none;font-size:20px;color:var(--ink);padding:0 4px;}
+  .modal-body{flex:1;overflow:auto;padding:0;background:#3a3323;display:flex;align-items:center;justify-content:center;}
+  .modal-body embed, .modal-body img{width:100%;height:100%;max-height:80vh;object-fit:contain;}
+  .modal-body .modal-msg{color:var(--card);padding:40px;font-size:14px;font-family:'IBM Plex Mono',monospace;}
+
+  @media (max-width:640px){
+    .shell{padding:24px 16px 60px;}
+    .panel{padding:20px 16px;}
+  }
+
+  body.is-mobile .btn{padding:12px 18px;font-size:14px;}
+  body.is-mobile .btn.small{padding:9px 14px;font-size:13px;}
+  body.is-mobile .tab{padding:13px 20px 12px;font-size:15px;}
+  body.is-mobile .link-btn{padding:6px 0;font-size:13px;}
+  body.is-mobile .item-card{padding:18px;}
+  body.is-mobile .nav-btn{padding:11px 20px;font-size:14px;}
+  body.is-mobile .cal-day{padding:15px 18px;font-size:15px;}
+  body.is-mobile .status-tag{padding:7px 13px;font-size:12px;}
+
+  /* ---------- loading screen ---------- */
+  #loadScreen{
+    position:fixed;inset:0;z-index:100;
+    background:var(--paper);
+    display:flex;align-items:center;justify-content:center;
+    transition:opacity .35s ease;
+  }
+  #loadScreen.fade-out{opacity:0;pointer-events:none;}
+  .load-box{width:min(320px,80vw);text-align:center;}
+  .load-title{font-family:'Source Serif 4',serif;font-size:22px;font-weight:600;margin:0 0 4px;}
+  .load-status{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);margin:0 0 18px;min-height:16px;}
+  .load-track{height:2px;background:var(--rule);width:100%;position:relative;}
+  .load-fill{height:2px;background:var(--ink);width:0%;transition:width 1.7s cubic-bezier(.4,0,.2,1);}
+</style>
+</head>
+<body>
+<div id="loadScreen">
+  <div class="load-box">
+    <p class="load-title">BackPack</p>
+    <p class="load-status mono" id="loadStatus">Opening&hellip;</p>
+    <div class="load-track"><div class="load-fill" id="loadFill"></div></div>
+  </div>
+</div>
+<div class="shell" id="app"></div>
+
+<script>
+(function(){
+  const S = {
+    title: 'BackPack',
+    subjects: [],
+    activeId: null,
+    items: [],
+    filter: '',
+    formOpen: false,
+    modal: null, // {title, mode:'pdf'|'image'|'error', src, msg}
+    device: {isMobile: false, isIOS: false, isAndroid: false},
+    view: 'calendar', // 'archive' | 'calendar'
+    archiveSub: 'list', // 'list' | 'detail'
+    subjectFormOpen: false,
+    subjectCounts: {},
+    syncStatus: 'idle', // 'idle' | 'synced' | 'error'
+    schedule: {},
+    activeDay: 'Monday',
+    classFormOpen: false
+  };
+
+  const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+  const app = document.getElementById('app');
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+
+  function detectDevice(){
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/.test(ua);
+    const isMobile = isIOS || isAndroid || /Mobi/i.test(ua);
+    return {isMobile, isIOS, isAndroid};
+  }
+
+  function openGeminiNotebook(){
+    const url = 'https://notebooklm.google.com';
+    if(S.device.isMobile){
+      // Top-level navigation gives the OS a chance to hand off to the
+      // installed app via its universal / app link, instead of forcing
+      // a browser tab the way a new-window open would.
+      window.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener');
     }
   }
-  return out({value: null});
-}
 
-function doPost(e) {
-  var body = JSON.parse(e.postData.contents);
-  var sheet = getDataSheet();
-  var rows = sheet.getDataRange().getValues();
-  for (var i = 0; i < rows.length; i++) {
-    if (rows[i][0] === body.key) {
-      sheet.getRange(i + 1, 2).setValue(body.value);
-      return out({ok: true});
+  async function storeGet(key){
+    try{
+      const r = await window.storage.get(key, false);
+      return r ? r.value : null;
+    }catch(e){ return null; }
+  }
+  async function storeSet(key, value){
+    try{
+      const r = await window.storage.set(key, value, false);
+      return !!r;
+    }catch(e){ return false; }
+  }
+  async function storeDelete(key){
+    try{ await window.storage.delete(key, false); }catch(e){}
+  }
+
+  // ---- Google Sheets sync (schedule, subjects, items lists, title) ----
+  // File uploads stay on window.storage above — they're too large for a
+  // spreadsheet cell. Everything else routes through the deployed Apps
+  // Script web app so it's readable from any device, not just this one.
+  const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzmOOz0R6gS4ti3s0Gyi-amyjt4_0U0AmD7l9wXSmlqVaH7jWls6WwUpWKzuzcX4M13/exec';
+
+  async function sheetGet(key){
+    try{
+      const res = await fetch(`${SHEET_URL}?key=${encodeURIComponent(key)}`);
+      if(!res.ok) return {ok: false, value: null};
+      const data = await res.json();
+      return {ok: true, value: (data && data.value !== undefined) ? data.value : null};
+    }catch(e){ return {ok: false, value: null}; }
+  }
+  async function sheetSet(key, value){
+    try{
+      // text/plain avoids a CORS preflight the Apps Script deployment doesn't handle.
+      const res = await fetch(SHEET_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({key, value})
+      });
+      return res.ok;
+    }catch(e){ return false; }
+  }
+
+  async function dataGet(key){
+    const r = await sheetGet(key);
+    S.syncStatus = r.ok ? 'synced' : 'error';
+    return r.value;
+  }
+  async function dataSet(key, value){
+    const ok = await sheetSet(key, value);
+    S.syncStatus = ok ? 'synced' : 'error';
+    return ok;
+  }
+  async function dataDelete(key){
+    await dataSet(key, '');
+  }
+
+  async function loadMeta(){
+    const raw = await dataGet('meta');
+    if(raw){
+      try{ const m = JSON.parse(raw); if(m.title) S.title = m.title; }catch(e){}
     }
   }
-  sheet.appendRow([body.key, body.value]);
-  return out({ok: true});
-}
+  async function saveMeta(){
+    await dataSet('meta', JSON.stringify({title: S.title}));
+  }
+  async function loadSubjects(){
+    const raw = await dataGet('subjects');
+    if(raw){ try{ S.subjects = JSON.parse(raw); }catch(e){ S.subjects = []; } }
+  }
+  async function saveSubjects(){
+    await dataSet('subjects', JSON.stringify(S.subjects));
+  }
+  async function refreshSubjectCounts(){
+    await Promise.all(S.subjects.map(async s => {
+      const items = await loadItems(s.id);
+      S.subjectCounts[s.id] = items.length;
+    }));
+  }
+  async function loadItems(subjectId){
+    const raw = await dataGet('items-' + subjectId);
+    if(raw){ try{ return JSON.parse(raw); }catch(e){ return []; } }
+    return [];
+  }
+  async function saveItems(subjectId, items){
+    await dataSet('items-' + subjectId, JSON.stringify(items));
+  }
+  async function loadSchedule(){
+    const raw = await dataGet('schedule');
+    if(raw){ try{ S.schedule = JSON.parse(raw); }catch(e){ S.schedule = {}; } }
+  }
+  async function saveSchedule(){
+    await dataSet('schedule', JSON.stringify(S.schedule));
+  }
+  function getDayClasses(day){
+    return S.schedule[day] || [];
+  }
 
-function getDataSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  return ss.getSheetByName('data') || ss.insertSheet('data');
-}
+  // Parsed from the user's "Orar XI A" timetable photo.
+  const DEFAULT_SCHEDULE = {
+    Monday: [
+      {time:'7:30\u20138:20', name:'Dirigen\u021bie'},
+      {time:'8:30\u20139:20', name:'Rom\u00e2n\u0103'},
+      {time:'9:30\u201310:20', name:'Rom\u00e2n\u0103'},
+      {time:'10:40\u201311:30', name:'Chimie'},
+      {time:'11:40\u201312:30', name:'Istorie'},
+      {time:'12:40\u201313:30', name:'Evrei'}
+    ],
+    Tuesday: [
+      {time:'7:30\u20138:20', name:'Rom\u00e2n\u0103'},
+      {time:'8:30\u20139:20', name:'Info'},
+      {time:'9:30\u201310:20', name:'Info'},
+      {time:'10:40\u201311:30', name:'German\u0103'},
+      {time:'11:40\u201312:30', name:'Mate'},
+      {time:'12:40\u201313:30', name:'Sport'},
+      {time:'13:40\u201314:30', name:'Religie'}
+    ],
+    Wednesday: [
+      {time:'7:30\u20138:20', name:'Mate'},
+      {time:'8:30\u20139:20', name:'Rom\u00e2n\u0103'},
+      {time:'9:30\u201310:20', name:'Info'},
+      {time:'10:40\u201311:30', name:'Info'},
+      {time:'11:40\u201312:30', name:'Fizic\u0103'},
+      {time:'12:40\u201313:30', name:'Op\u021bional'},
+      {time:'13:40\u201314:30', name:'Op\u021bional'}
+    ],
+    Thursday: [
+      {time:'7:30\u20138:20', name:'Mate'},
+      {time:'8:30\u20139:20', name:'Geografie'},
+      {time:'9:30\u201310:20', name:'German\u0103'},
+      {time:'10:40\u201311:30', name:'Fizic\u0103'},
+      {time:'11:40\u201312:30', name:'Fizic\u0103'},
+      {time:'12:40\u201313:30', name:'Biologie'},
+      {time:'13:40\u201314:30', name:'Religie'}
+    ],
+    Friday: [
+      {time:'7:30\u20138:20', name:'Englez\u0103'},
+      {time:'8:30\u20139:20', name:'Info'},
+      {time:'9:30\u201310:20', name:'Info'},
+      {time:'10:40\u201311:30', name:'Info'},
+      {time:'11:40\u201312:30', name:'Mate'},
+      {time:'12:40\u201313:30', name:'Economie'}
+    ],
+    Saturday: [],
+    Sunday: []
+  };
 
-function out(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
-}
+  function seedDefaultSchedule(){
+    S.schedule = {};
+    DAYS.forEach(d => {
+      S.schedule[d] = (DEFAULT_SCHEDULE[d] || []).map(c => ({id: uid(), name: c.name, time: c.time, items: []}));
+    });
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function fmtDate(iso){
+    try{ const d = new Date(iso); return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+    catch(e){ return ''; }
+  }
+  function subjectPrefix(name){
+    return (name || 'GEN').replace(/[^a-zA-Z]/g,'').slice(0,3).toUpperCase().padEnd(3,'X');
+  }
+
+  const EXT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H9M17 7V15"/></svg>`;
+
+  function render(){
+    const activeSubject = S.subjects.find(s => s.id === S.activeId);
+    const showDetail = S.archiveSub === 'detail' && activeSubject;
+
+    let archiveHtml = '';
+    if(!showDetail){
+      archiveHtml = renderSubjectsPage();
+    } else {
+      const visibleItems = S.items.filter(it => it.title.toLowerCase().includes(S.filter.toLowerCase()));
+      const cards = visibleItems.map((it, idx) => {
+        const realIdx = S.items.indexOf(it);
+        const acc = subjectPrefix(activeSubject.name) + '-' + String(realIdx+1).padStart(3,'0');
+        const sourceLabel = it.source === 'link' ? 'linked' : (it.fileName || 'uploaded file');
+        return `
+        <div class="item-card">
+          <div class="card-top">
+            <span class="accession mono">${acc}</span>
+            <span class="type-tag mono">${escapeHtml(it.type)}</span>
+          </div>
+          <p class="item-title">${escapeHtml(it.title)}</p>
+          <div class="item-meta mono">${escapeHtml(sourceLabel)} &middot; added ${fmtDate(it.addedAt)}</div>
+          <div class="card-actions">
+            <button class="btn small" data-open-item="${it.id}">Open</button>
+            <button class="link-btn" data-delete-item="${it.id}">Remove</button>
+          </div>
+        </div>`;
+      }).join('');
+
+      archiveHtml = `
+        <div class="panel">
+          <button class="back-link mono" data-back-to-subjects>&larr; All subjects</button>
+          <div class="subject-head">
+            <div><span class="subject-name">${escapeHtml(activeSubject.name)}</span><span class="subject-count mono">${S.items.length} item${S.items.length===1?'':'s'}</span></div>
+            <div class="head-actions">
+              <button class="btn ghost small" data-toggle-form>${S.formOpen ? 'Close form' : 'Add entry'}</button>
+            </div>
+          </div>
+
+          ${S.formOpen ? renderForm() : ''}
+
+          ${S.items.length > 3 ? `
+          <div class="search-row">
+            <input type="text" id="filterInput" placeholder="Filter by title\u2026" value="${escapeHtml(S.filter)}">
+          </div>` : ''}
+
+          ${visibleItems.length === 0
+            ? `<div class="empty-state">${S.items.length===0 ? 'Nothing filed yet. Add your first manual, book, or notes above.' : 'No entries match that filter.'}</div>`
+            : `<div class="grid">${cards}</div>`}
+        </div>`;
+    }
+
+    app.innerHTML = `
+      <header class="top">
+        <div class="title-block">
+          <h1 class="archive-title mono" id="titleField" contenteditable="true" spellcheck="false">${escapeHtml(S.title)}</h1>
+          <p class="archive-sub mono">manuals, books, notebooks &amp; notes</p>
+        </div>
+        <button class="notebooklm-link" id="notebookLmBtn">
+          ${EXT_ICON} ${S.device.isMobile ? 'Open Gemini Notebook app' : 'Open Gemini Notebook'}
+        </button>
+      </header>
+
+      ${S.syncStatus === 'error' ? `
+      <div class="sync-banner mono">Couldn't reach Google Sheets \u2014 changes aren't syncing right now. They'll retry on your next edit.</div>` : ''}
+
+      <div class="nav-row">
+        <button class="nav-btn ${S.view==='calendar'?'active':''}" data-view="calendar">Calendar</button>
+        <button class="nav-btn ${S.view==='archive'?'active':''}" data-view="archive">Archive</button>
+      </div>
+
+      ${S.view === 'archive' ? archiveHtml : renderCalendarSection()}
+
+      ${S.modal ? renderModal() : ''}
+    `;
+
+    bindEvents();
+  }
+
+  function renderSubjectsPage(){
+    const cards = S.subjects.map(s => {
+      const count = S.subjectCounts && (s.id in S.subjectCounts) ? S.subjectCounts[s.id] : null;
+      return `
+      <div class="item-card">
+        <p class="item-title">${escapeHtml(s.name)}</p>
+        <div class="item-meta mono">${count === null ? 'subject' : count + ' item' + (count===1?'':'s')}</div>
+        <div class="card-actions">
+          <button class="btn small" data-open-subject="${s.id}">Open</button>
+          <button class="link-btn" data-delete-subject="${s.id}">Remove</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="panel">
+        <div class="subject-head">
+          <div><span class="subject-name">Subjects</span><span class="subject-count mono">${S.subjects.length}</span></div>
+          <div class="head-actions">
+            <button class="btn ghost small" data-toggle-subject-form>${S.subjectFormOpen ? 'Close form' : 'Add subject'}</button>
+          </div>
+        </div>
+
+        ${S.subjectFormOpen ? renderSubjectForm() : ''}
+
+        ${S.subjects.length === 0
+          ? `<div class="empty-state">Add a subject to start filing manuals, books, and notes &mdash; or tap a class in the Calendar and one will be created for you.</div>`
+          : `<div class="grid">${cards}</div>`}
+      </div>`;
+  }
+
+  function renderSubjectForm(){
+    return `
+    <div class="add-form" id="subjectForm">
+      <h3>Add a subject</h3>
+      <div class="field">
+        <label for="sf-name">Name</label>
+        <input type="text" id="sf-name" placeholder="e.g. Fizic\u0103, Chimie">
+      </div>
+      <div id="subjectFormError"></div>
+      <div class="form-actions">
+        <button class="btn" id="submitSubject">Add subject</button>
+        <button class="btn ghost" id="cancelSubject">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  function renderCalendarSection(){
+    const dayButtons = DAYS.map(d => `<button class="cal-day ${d===S.activeDay?'active':''}" data-cal-day="${d}">${d}</button>`).join('');
+    const classes = getDayClasses(S.activeDay);
+
+    const classBlocks = classes.map(c => {
+      const itemRows = c.items.map(it => `
+        <div class="item-row">
+          <span class="item-name">${escapeHtml(it.name)}</span>
+          <div class="item-row-actions">
+            <button class="status-tag ${it.status}" data-toggle-status data-day="${S.activeDay}" data-class="${c.id}" data-item="${it.id}">${it.status==='home' ? 'At home' : 'At school'}</button>
+            <button class="link-btn" data-del-item data-day="${S.activeDay}" data-class="${c.id}" data-item="${it.id}">Remove</button>
+          </div>
+        </div>`).join('');
+
+      return `
+      <div class="class-block">
+        <div class="class-head">
+          <button class="class-head-btn" data-open-subject-by-name="${escapeHtml(c.name)}">
+            ${c.time ? `<span class="class-time mono">${escapeHtml(c.time)}</span>` : ''}
+            <span class="class-name">${escapeHtml(c.name)}</span>
+          </button>
+        </div>
+        ${itemRows || '<div class="empty-state" style="padding:8px 0;text-align:left;">Nothing to bring yet.</div>'}
+        <div class="mini-add">
+          <input type="text" placeholder="Add item, e.g. Caiet, Manual&hellip;" data-item-input data-day="${S.activeDay}" data-class="${c.id}">
+          <button class="btn small" data-add-item-btn data-day="${S.activeDay}" data-class="${c.id}">Add</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="cal-layout">
+        <div class="cal-sidebar">${dayButtons}</div>
+        <div class="cal-main">
+          <p class="cal-day-title">${S.activeDay}</p>
+          <p class="cal-day-sub mono">${classes.length} class${classes.length===1?'':'es'} scheduled</p>
+          <button class="btn ghost small" data-toggle-class-form style="margin-bottom:20px;">${S.classFormOpen ? 'Close form' : 'Add class'}</button>
+          ${S.classFormOpen ? renderClassForm() : ''}
+          ${classes.length === 0
+            ? `<div class="empty-state">Nothing on the schedule for ${S.activeDay} yet.</div>`
+            : classBlocks}
+        </div>
+      </div>`;
+  }
+
+  function renderClassForm(){
+    return `
+    <div class="add-form" id="classForm">
+      <h3>Add a class to ${S.activeDay}</h3>
+      <div class="field">
+        <label for="cf-name">Class name</label>
+        <input type="text" id="cf-name" placeholder="e.g. Matematic\u0103">
+      </div>
+      <div class="field">
+        <label for="cf-time">Time (optional)</label>
+        <input type="text" id="cf-time" placeholder="e.g. 11:40\u201312:30">
+      </div>
+      <div id="classFormError"></div>
+      <div class="form-actions">
+        <button class="btn" id="submitClass">Add class</button>
+        <button class="btn ghost" id="cancelClass">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  function renderForm(){
+    return `
+    <div class="add-form" id="addForm">
+      <h3>Add to the catalog</h3>
+      <div class="field">
+        <label for="f-title">Title</label>
+        <input type="text" id="f-title" placeholder="e.g. Chapter 4 notes, Wiring manual">
+      </div>
+      <div class="field">
+        <label for="f-type">Type</label>
+        <select id="f-type">
+          <option>Manual</option>
+          <option>Textbook</option>
+          <option>Notebook</option>
+          <option>Notes</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="source-toggle">
+        <label><input type="radio" name="src" value="upload" checked> Upload a file</label>
+        <label><input type="radio" name="src" value="link"> Link to a file</label>
+      </div>
+      <div class="field" id="uploadField">
+        <label for="f-file">PDF or image</label>
+        <input type="file" id="f-file" accept="application/pdf,image/*">
+        <div class="form-note">Best for scans and photos under a few MB. Larger files may fail to save &mdash; use a link instead.</div>
+      </div>
+      <div class="field" id="linkField" style="display:none">
+        <label for="f-url">File URL</label>
+        <input type="url" id="f-url" placeholder="https://drive.google.com/...">
+      </div>
+      <div id="formError"></div>
+      <div class="form-actions">
+        <button class="btn" id="submitEntry">Add to catalog</button>
+        <button class="btn ghost" id="cancelEntry">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  function renderModal(){
+    const m = S.modal;
+    let body = '';
+    if(m.mode === 'pdf') body = `<embed src="${m.src}" type="application/pdf">`;
+    else if(m.mode === 'image') body = `<img src="${m.src}" alt="${escapeHtml(m.title)}">`;
+    else body = `<div class="modal-msg mono">${escapeHtml(m.msg || 'Loading\u2026')}</div>`;
+    return `
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal">
+        <div class="modal-head">
+          <h3>${escapeHtml(m.title)}</h3>
+          <button class="modal-close" id="modalClose">&times;</button>
+        </div>
+        <div class="modal-body">${body}</div>
+      </div>
+    </div>`;
+  }
+
+  function bindEvents(){
+    document.querySelectorAll('[data-open-subject]').forEach(el => {
+      el.addEventListener('click', () => openSubject(el.dataset.openSubject));
+    });
+
+    const toggleSubjectFormBtn = document.querySelector('[data-toggle-subject-form]');
+    if(toggleSubjectFormBtn) toggleSubjectFormBtn.addEventListener('click', () => { S.subjectFormOpen = !S.subjectFormOpen; render(); });
+    const cancelSubjectBtn = document.getElementById('cancelSubject');
+    if(cancelSubjectBtn) cancelSubjectBtn.addEventListener('click', () => { S.subjectFormOpen = false; render(); });
+    const submitSubjectBtn = document.getElementById('submitSubject');
+    if(submitSubjectBtn) submitSubjectBtn.addEventListener('click', submitSubject);
+
+    const backLink = document.querySelector('[data-back-to-subjects]');
+    if(backLink) backLink.addEventListener('click', () => { S.archiveSub = 'list'; render(); });
+
+    const titleField = document.getElementById('titleField');
+    if(titleField){
+      titleField.addEventListener('blur', async () => {
+        const val = titleField.textContent.trim() || 'BackPack';
+        S.title = val;
+        await saveMeta();
+      });
+      titleField.addEventListener('keydown', e => {
+        if(e.key === 'Enter'){ e.preventDefault(); titleField.blur(); }
+      });
+    }
+
+    const nbBtn = document.getElementById('notebookLmBtn');
+    if(nbBtn) nbBtn.addEventListener('click', openGeminiNotebook);
+
+    document.querySelectorAll('[data-view]').forEach(el => {
+      el.addEventListener('click', () => {
+        S.view = el.dataset.view;
+        if(el.dataset.view === 'archive') S.archiveSub = 'list';
+        render();
+      });
+    });
+
+    document.querySelectorAll('[data-cal-day]').forEach(el => {
+      el.addEventListener('click', () => { S.activeDay = el.dataset.calDay; S.classFormOpen = false; render(); });
+    });
+
+    const toggleClassFormBtn = document.querySelector('[data-toggle-class-form]');
+    if(toggleClassFormBtn) toggleClassFormBtn.addEventListener('click', () => { S.classFormOpen = !S.classFormOpen; render(); });
+    const cancelClassBtn = document.getElementById('cancelClass');
+    if(cancelClassBtn) cancelClassBtn.addEventListener('click', () => { S.classFormOpen = false; render(); });
+    const submitClassBtn = document.getElementById('submitClass');
+    if(submitClassBtn) submitClassBtn.addEventListener('click', submitClass);
+
+    document.querySelectorAll('[data-add-item-btn]').forEach(el => {
+      el.addEventListener('click', () => {
+        const input = document.querySelector(`[data-item-input][data-day="${el.dataset.day}"][data-class="${el.dataset.class}"]`);
+        if(input) addScheduleItem(el.dataset.day, el.dataset.class, input);
+      });
+    });
+    document.querySelectorAll('[data-item-input]').forEach(el => {
+      el.addEventListener('keydown', e => {
+        if(e.key === 'Enter'){ e.preventDefault(); addScheduleItem(el.dataset.day, el.dataset.class, el); }
+      });
+    });
+
+    document.querySelectorAll('[data-open-subject-by-name]').forEach(el => {
+      el.addEventListener('click', () => openSubjectByName(el.dataset.openSubjectByName));
+    });
+
+    document.querySelectorAll('[data-toggle-status]').forEach(el => {
+      el.addEventListener('click', () => toggleItemStatus(el.dataset.day, el.dataset.class, el.dataset.item));
+    });
+    document.querySelectorAll('[data-del-item]').forEach(el => {
+      el.addEventListener('click', () => deleteScheduleItem(el.dataset.day, el.dataset.class, el.dataset.item));
+    });
+    document.querySelectorAll('[data-del-class]').forEach(el => {
+      el.addEventListener('click', () => deleteClass(el.dataset.day, el.dataset.class));
+    });
+
+    const toggleFormBtn = document.querySelector('[data-toggle-form]');
+    if(toggleFormBtn) toggleFormBtn.addEventListener('click', () => { S.formOpen = !S.formOpen; render(); });
+
+    const cancelBtn = document.getElementById('cancelEntry');
+    if(cancelBtn) cancelBtn.addEventListener('click', () => { S.formOpen = false; render(); });
+
+    const submitBtn = document.getElementById('submitEntry');
+    if(submitBtn) submitBtn.addEventListener('click', submitEntry);
+
+    document.querySelectorAll('input[name=src]').forEach(r => {
+      r.addEventListener('change', () => {
+        const isUpload = document.querySelector('input[name=src]:checked').value === 'upload';
+        document.getElementById('uploadField').style.display = isUpload ? '' : 'none';
+        document.getElementById('linkField').style.display = isUpload ? 'none' : '';
+      });
+    });
+
+    document.querySelectorAll('[data-delete-subject]').forEach(el => {
+      el.addEventListener('click', () => deleteSubject(el.dataset.deleteSubject));
+    });
+
+    document.querySelectorAll('[data-open-item]').forEach(el => {
+      el.addEventListener('click', () => openItem(el.dataset.openItem));
+    });
+    document.querySelectorAll('[data-delete-item]').forEach(el => {
+      el.addEventListener('click', () => deleteItem(el.dataset.deleteItem));
+    });
+
+    const filterInput = document.getElementById('filterInput');
+    if(filterInput){
+      filterInput.addEventListener('input', () => { S.filter = filterInput.value; render(); focusFilter(); });
+    }
+
+    const modalClose = document.getElementById('modalClose');
+    if(modalClose) modalClose.addEventListener('click', () => { S.modal = null; render(); });
+    const overlay = document.getElementById('modalOverlay');
+    if(overlay) overlay.addEventListener('click', (e) => { if(e.target === overlay){ S.modal = null; render(); } });
+  }
+
+  function focusFilter(){
+    const el = document.getElementById('filterInput');
+    if(el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+  }
+
+  async function openSubject(id){
+    S.activeId = id;
+    S.archiveSub = 'detail';
+    S.formOpen = false;
+    S.filter = '';
+    S.items = await loadItems(id);
+    S.subjectCounts[id] = S.items.length;
+    render();
+  }
+
+  async function openSubjectByName(name){
+    const clean = name.trim();
+    let subj = S.subjects.find(s => s.name.trim().toLowerCase() === clean.toLowerCase());
+    if(!subj){
+      subj = {id: uid(), name: clean};
+      S.subjects.push(subj);
+      S.subjectCounts[subj.id] = 0;
+      await saveSubjects();
+    }
+    S.view = 'archive';
+    await openSubject(subj.id);
+  }
+
+  async function submitSubject(){
+    const nameEl = document.getElementById('sf-name');
+    const name = nameEl.value.trim();
+    if(!name){
+      const box = document.getElementById('subjectFormError');
+      if(box) box.innerHTML = `<div class="form-error">Give the subject a name.</div>`;
+      return;
+    }
+    const subj = {id: uid(), name};
+    S.subjects.push(subj);
+    S.subjectCounts[subj.id] = 0;
+    await saveSubjects();
+    S.subjectFormOpen = false;
+    render();
+  }
+
+  async function deleteSubject(id){
+    const subj = S.subjects.find(s => s.id === id);
+    if(!subj) return;
+    if(!confirm(`Delete "${subj.name}" and everything filed under it? This can't be undone.`)) return;
+    const items = await loadItems(id);
+    for(const it of items){
+      if(it.source === 'upload') await storeDelete('file-' + it.id);
+    }
+    await dataDelete('items-' + id);
+    S.subjects = S.subjects.filter(s => s.id !== id);
+    delete S.subjectCounts[id];
+    await saveSubjects();
+    S.activeId = null;
+    S.items = [];
+    S.archiveSub = 'list';
+    render();
+  }
+
+  async function submitClass(){
+    const nameEl = document.getElementById('cf-name');
+    const timeEl = document.getElementById('cf-time');
+    const name = nameEl.value.trim();
+    const time = timeEl.value.trim();
+    if(!name){
+      const box = document.getElementById('classFormError');
+      if(box) box.innerHTML = `<div class="form-error">Give the class a name.</div>`;
+      return;
+    }
+    if(!S.schedule[S.activeDay]) S.schedule[S.activeDay] = [];
+    S.schedule[S.activeDay].push({id: uid(), name, time, items: []});
+    await saveSchedule();
+    S.classFormOpen = false;
+    render();
+  }
+
+  async function deleteClass(day, classId){
+    const cls = (S.schedule[day] || []).find(c => c.id === classId);
+    if(!cls) return;
+    if(!confirm(`Remove "${cls.name}" from ${day}?`)) return;
+    S.schedule[day] = (S.schedule[day] || []).filter(c => c.id !== classId);
+    await saveSchedule();
+    render();
+  }
+
+  async function addScheduleItem(day, classId, inputEl){
+    const name = inputEl.value.trim();
+    if(!name) return;
+    const cls = (S.schedule[day] || []).find(c => c.id === classId);
+    if(!cls) return;
+    cls.items.push({id: uid(), name, status: 'home'});
+    await saveSchedule();
+    render();
+  }
+
+  async function toggleItemStatus(day, classId, itemId){
+    const cls = (S.schedule[day] || []).find(c => c.id === classId);
+    if(!cls) return;
+    const it = cls.items.find(i => i.id === itemId);
+    if(!it) return;
+    it.status = it.status === 'home' ? 'school' : 'home';
+    await saveSchedule();
+    render();
+  }
+
+  async function deleteScheduleItem(day, classId, itemId){
+    const cls = (S.schedule[day] || []).find(c => c.id === classId);
+    if(!cls) return;
+    cls.items = cls.items.filter(i => i.id !== itemId);
+    await saveSchedule();
+    render();
+  }
+
+  function showFormError(msg){
+    const box = document.getElementById('formError');
+    if(box) box.innerHTML = `<div class="form-error">${escapeHtml(msg)}</div>`;
+  }
+
+  function fileToDataUrl(file){
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('Could not read file'));
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function submitEntry(){
+    const title = document.getElementById('f-title').value.trim();
+    const type = document.getElementById('f-type').value;
+    const src = document.querySelector('input[name=src]:checked').value;
+    if(!title){ showFormError('Give it a title first.'); return; }
+
+    const submitBtn = document.getElementById('submitEntry');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Adding\u2026';
+
+    const item = {id: uid(), title, type, source: src, addedAt: new Date().toISOString()};
+
+    if(src === 'upload'){
+      const fileInput = document.getElementById('f-file');
+      const file = fileInput.files[0];
+      if(!file){ showFormError('Choose a file, or switch to Link.'); submitBtn.disabled=false; submitBtn.textContent='Add to catalog'; return; }
+      if(file.size > 4.2 * 1024 * 1024){
+        showFormError('That file is likely too large to save (limit is about 4\u20135MB once encoded). Try a smaller file or use a link instead.');
+        submitBtn.disabled = false; submitBtn.textContent = 'Add to catalog';
+        return;
+      }
+      let dataUrl;
+      try{ dataUrl = await fileToDataUrl(file); }
+      catch(e){ showFormError('Could not read that file.'); submitBtn.disabled=false; submitBtn.textContent='Add to catalog'; return; }
+
+      const ok = await storeSet('file-' + item.id, dataUrl);
+      if(!ok){
+        showFormError('Saving failed \u2014 the file may be too large. Try a smaller file or use a link instead.');
+        submitBtn.disabled = false; submitBtn.textContent = 'Add to catalog';
+        return;
+      }
+      item.fileName = file.name;
+      item.mime = file.type || (dataUrl.split(';')[0].replace('data:',''));
+    } else {
+      const url = document.getElementById('f-url').value.trim();
+      if(!url){ showFormError('Paste a link, or switch to Upload.'); submitBtn.disabled=false; submitBtn.textContent='Add to catalog'; return; }
+      item.url = url;
+    }
+
+    S.items.push(item);
+    await saveItems(S.activeId, S.items);
+    S.subjectCounts[S.activeId] = S.items.length;
+    S.formOpen = false;
+    render();
+  }
+
+  async function deleteItem(id){
+    const item = S.items.find(i => i.id === id);
+    if(!item) return;
+    if(!confirm(`Remove "${item.title}" from the catalog?`)) return;
+    if(item.source === 'upload') await storeDelete('file-' + id);
+    S.items = S.items.filter(i => i.id !== id);
+    await saveItems(S.activeId, S.items);
+    S.subjectCounts[S.activeId] = S.items.length;
+    render();
+  }
+
+  async function openItem(id){
+    const item = S.items.find(i => i.id === id);
+    if(!item) return;
+    if(item.source === 'link'){
+      window.open(item.url, '_blank', 'noopener');
+      return;
+    }
+    S.modal = {title: item.title, mode: 'loading', msg: 'Opening\u2026'};
+    render();
+    const dataUrl = await storeGet('file-' + id);
+    if(!dataUrl){
+      S.modal = {title: item.title, mode: 'error', msg: 'Could not load this file. It may have failed to save originally.'};
+      render();
+      return;
+    }
+    const mime = item.mime || '';
+    S.modal = {
+      title: item.title,
+      mode: mime.includes('pdf') ? 'pdf' : 'image',
+      src: dataUrl
+    };
+    render();
+  }
+
+  function minDelay(ms){
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async function init(){
+    const statusEl = document.getElementById('loadStatus');
+    const fillEl = document.getElementById('loadFill');
+    const screenEl = document.getElementById('loadScreen');
+
+    // Kick off the fill animation (double rAF so the transition reliably fires).
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if(fillEl) fillEl.style.width = '100%';
+    }));
+
+    S.device = detectDevice();
+    document.body.classList.toggle('is-mobile', S.device.isMobile);
+    if(statusEl) statusEl.textContent = S.device.isMobile ? 'Setting up for your phone\u2026' : 'Setting up for your desktop\u2026';
+
+    const todayName = new Date().toLocaleDateString('en-US', {weekday: 'long'});
+    if(DAYS.includes(todayName)) S.activeDay = todayName;
+
+    const dataReady = Promise.all([loadMeta(), loadSubjects(), loadSchedule()]);
+    await Promise.all([dataReady, minDelay(1700)]);
+
+    if(Object.keys(S.schedule).length === 0){
+      seedDefaultSchedule();
+      await saveSchedule();
+    }
+
+    await refreshSubjectCounts();
+
+    if(statusEl) statusEl.textContent = 'Ready';
+    render();
+
+    if(screenEl){
+      screenEl.classList.add('fade-out');
+      setTimeout(() => screenEl.remove(), 400);
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
