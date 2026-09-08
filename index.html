@@ -90,12 +90,17 @@
   .cal-day-title{font-size:22px;font-weight:600;margin:0 0 4px;}
   .cal-day-sub{font-size:12px;color:var(--ink-soft);margin:0 0 18px;}
 
-  .class-block{border:1px solid var(--rule);margin-bottom:16px;padding:14px 16px;background:var(--paper);}
-  .class-head{margin-bottom:8px;}
-  .class-head-btn{display:block;width:100%;text-align:left;background:none;border:none;padding:0;margin:0;cursor:pointer;color:inherit;font-family:inherit;}
+  .class-group{padding:16px 0;}
+  .class-row-head{margin-bottom:8px;}
+  .class-head-btn{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:10px;background:none;border:none;padding:0;margin:0;cursor:pointer;color:inherit;font-family:inherit;text-align:left;}
   .class-head-btn:hover .class-name{text-decoration:underline;text-decoration-color:var(--accent);}
-  .class-time{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:2px;}
-  .class-name{display:block;font-size:17px;font-weight:600;}
+  .class-name{font-size:17px;font-weight:600;}
+  .class-time{font-size:12px;color:var(--ink-soft);white-space:nowrap;}
+  .period-badge{font-size:10px;color:var(--ink-soft);border:1px solid var(--ink-soft);padding:1px 6px;}
+  .class-sep{display:flex;justify-content:center;}
+  .class-sep span{display:block;width:56px;height:1px;background:var(--rule);}
+  .add-item-link{font-size:12px;color:var(--ink-soft);text-decoration:underline;background:none;border:none;padding:0;margin-top:8px;display:inline-block;}
+  .add-item-link:hover{color:var(--accent);}
   .item-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--rule);}
   .item-row:first-of-type{border-top:none;}
   .item-name{font-size:14px;}
@@ -279,7 +284,7 @@
   .load-title{font-family:'Source Serif 4',serif;font-size:22px;font-weight:600;margin:0 0 4px;}
   .load-status{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);margin:0 0 18px;min-height:16px;}
   .load-track{height:2px;background:var(--rule);width:100%;position:relative;}
-  .load-fill{height:2px;background:var(--ink);width:0%;transition:width 1.7s cubic-bezier(.4,0,.2,1);}
+  .load-fill{height:2px;background:var(--ink);width:0%;transition:width .6s cubic-bezier(.4,0,.2,1);}
 </style>
 </head>
 <body>
@@ -310,7 +315,8 @@
     syncStatus: 'idle', // 'idle' | 'synced' | 'error'
     schedule: {},
     activeDay: 'Monday',
-    classFormOpen: false
+    classFormOpen: false,
+    itemAddOpenFor: null
   };
 
   const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
@@ -570,7 +576,7 @@
       <div class="sync-banner mono">Couldn't reach Google Sheets \u2014 changes aren't syncing right now. They'll retry on your next edit.</div>` : ''}
 
       <div class="nav-row">
-        <button class="nav-btn ${S.view==='calendar'?'active':''}" data-view="calendar">Calendar</button>
+        <button class="nav-btn ${S.view==='calendar'?'active':''}" data-view="calendar">Schedule</button>
         <button class="nav-btn ${S.view==='archive'?'active':''}" data-view="archive">Archive</button>
       </div>
 
@@ -608,7 +614,7 @@
         ${S.subjectFormOpen ? renderSubjectForm() : ''}
 
         ${S.subjects.length === 0
-          ? `<div class="empty-state">Add a subject to start filing manuals, books, and notes &mdash; or tap a class in the Calendar and one will be created for you.</div>`
+          ? `<div class="empty-state">Add a subject to start filing manuals, books, and notes &mdash; or tap a class in the Schedule and one will be created for you.</div>`
           : `<div class="grid">${cards}</div>`}
       </div>`;
   }
@@ -629,47 +635,89 @@
     </div>`;
   }
 
+  function parseTimeRange(str){
+    if(!str) return null;
+    const parts = str.split(/[-\u2013\u2014]+/).map(p => p.trim()).filter(Boolean);
+    if(parts.length !== 2) return null;
+    return {start: parts[0], end: parts[1]};
+  }
+
+  function groupDayClasses(classes){
+    const groups = [];
+    classes.forEach(c => {
+      const last = groups[groups.length - 1];
+      if(last && last.name.trim().toLowerCase() === c.name.trim().toLowerCase()){
+        last.members.push(c);
+      } else {
+        groups.push({name: c.name, members: [c]});
+      }
+    });
+    return groups.map(g => {
+      let timeLabel = '';
+      if(g.members.length === 1){
+        timeLabel = g.members[0].time || '';
+      } else {
+        const first = parseTimeRange(g.members[0].time);
+        const last = parseTimeRange(g.members[g.members.length - 1].time);
+        timeLabel = (first && last)
+          ? first.start + '\u2013' + last.end
+          : g.members.map(m => m.time).filter(Boolean).join(', ');
+      }
+      const items = [];
+      g.members.forEach(m => (m.items || []).forEach(it => items.push(Object.assign({}, it, {classId: m.id}))));
+      return {name: g.name, time: timeLabel, periods: g.members.length, primaryId: g.members[0].id, items};
+    });
+  }
+
   function renderCalendarSection(){
     const dayButtons = DAYS.map(d => `<button class="cal-day ${d===S.activeDay?'active':''}" data-cal-day="${d}">${d}</button>`).join('');
     const classes = getDayClasses(S.activeDay);
+    const groups = groupDayClasses(classes);
 
-    const classBlocks = classes.map(c => {
-      const itemRows = c.items.map(it => `
+    const groupBlocks = groups.map(g => {
+      const itemRows = g.items.map(it => `
         <div class="item-row">
           <span class="item-name">${escapeHtml(it.name)}</span>
           <div class="item-row-actions">
-            <button class="status-tag ${it.status}" data-toggle-status data-day="${S.activeDay}" data-class="${c.id}" data-item="${it.id}">${it.status==='home' ? 'At home' : 'At school'}</button>
-            <button class="link-btn" data-del-item data-day="${S.activeDay}" data-class="${c.id}" data-item="${it.id}">Remove</button>
+            <button class="status-tag ${it.status}" data-toggle-status data-day="${S.activeDay}" data-class="${it.classId}" data-item="${it.id}">${it.status==='home' ? 'At home' : 'At school'}</button>
+            <button class="link-btn" data-del-item data-day="${S.activeDay}" data-class="${it.classId}" data-item="${it.id}">Remove</button>
           </div>
         </div>`).join('');
 
+      const addOpen = S.itemAddOpenFor === g.primaryId;
+
       return `
-      <div class="class-block">
-        <div class="class-head">
-          <button class="class-head-btn" data-open-subject-by-name="${escapeHtml(c.name)}">
-            ${c.time ? `<span class="class-time mono">${escapeHtml(c.time)}</span>` : ''}
-            <span class="class-name">${escapeHtml(c.name)}</span>
+      <div class="class-group">
+        <div class="class-row-head">
+          <button class="class-head-btn" data-open-subject-by-name="${escapeHtml(g.name)}">
+            <span class="class-name">${escapeHtml(g.name)}</span>
+            ${g.time ? `<span class="class-time mono">${escapeHtml(g.time)}</span>` : ''}
+            ${g.periods > 1 ? `<span class="period-badge mono">\u00d7${g.periods}</span>` : ''}
           </button>
         </div>
-        ${itemRows || '<div class="empty-state" style="padding:8px 0;text-align:left;">Nothing to bring yet.</div>'}
+        ${itemRows || '<div class="empty-state" style="padding:2px 0 6px;text-align:left;">Nothing to bring yet.</div>'}
+        ${addOpen ? `
         <div class="mini-add">
-          <input type="text" placeholder="Add item, e.g. Caiet, Manual&hellip;" data-item-input data-day="${S.activeDay}" data-class="${c.id}">
-          <button class="btn small" data-add-item-btn data-day="${S.activeDay}" data-class="${c.id}">Add</button>
-        </div>
+          <input type="text" placeholder="Add item, e.g. Caiet, Manual&hellip;" data-item-input data-day="${S.activeDay}" data-class="${g.primaryId}">
+          <button class="btn small" data-add-item-btn data-day="${S.activeDay}" data-class="${g.primaryId}">Add</button>
+        </div>` : `
+        <button class="add-item-link" data-open-item-add="${g.primaryId}">+ add item</button>`}
       </div>`;
-    }).join('');
+    });
+
+    const body = groupBlocks.map((html, idx) => idx === 0 ? html : `<div class="class-sep"><span></span></div>${html}`).join('');
 
     return `
       <div class="cal-layout">
         <div class="cal-sidebar">${dayButtons}</div>
         <div class="cal-main">
           <p class="cal-day-title">${S.activeDay}</p>
-          <p class="cal-day-sub mono">${classes.length} class${classes.length===1?'':'es'} scheduled</p>
+          <p class="cal-day-sub mono">${groups.length} class${groups.length===1?'':'es'} scheduled</p>
           <button class="btn ghost small" data-toggle-class-form style="margin-bottom:20px;">${S.classFormOpen ? 'Close form' : 'Add class'}</button>
           ${S.classFormOpen ? renderClassForm() : ''}
-          ${classes.length === 0
+          ${groups.length === 0
             ? `<div class="empty-state">Nothing on the schedule for ${S.activeDay} yet.</div>`
-            : classBlocks}
+            : body}
         </div>
       </div>`;
   }
@@ -790,7 +838,7 @@
     });
 
     document.querySelectorAll('[data-cal-day]').forEach(el => {
-      el.addEventListener('click', () => { S.activeDay = el.dataset.calDay; S.classFormOpen = false; render(); });
+      el.addEventListener('click', () => { S.activeDay = el.dataset.calDay; S.classFormOpen = false; S.itemAddOpenFor = null; render(); });
     });
 
     const toggleClassFormBtn = document.querySelector('[data-toggle-class-form]');
@@ -810,6 +858,9 @@
       el.addEventListener('keydown', e => {
         if(e.key === 'Enter'){ e.preventDefault(); addScheduleItem(el.dataset.day, el.dataset.class, el); }
       });
+    });
+    document.querySelectorAll('[data-open-item-add]').forEach(el => {
+      el.addEventListener('click', () => { S.itemAddOpenFor = el.dataset.openItemAdd; render(); });
     });
 
     document.querySelectorAll('[data-open-subject-by-name]').forEach(el => {
@@ -960,6 +1011,7 @@
     if(!cls) return;
     cls.items.push({id: uid(), name, status: 'home'});
     await saveSchedule();
+    S.itemAddOpenFor = null;
     render();
   }
 
@@ -1098,7 +1150,7 @@
     if(DAYS.includes(todayName)) S.activeDay = todayName;
 
     const dataReady = Promise.all([loadMeta(), loadSubjects(), loadSchedule()]);
-    await Promise.all([dataReady, minDelay(1700)]);
+    await Promise.all([dataReady, minDelay(400)]);
 
     if(Object.keys(S.schedule).length === 0){
       seedDefaultSchedule();
